@@ -1,0 +1,293 @@
+// JoyCars MVP data model — see ARCHITECTURE.md "Logical data model".
+// CHECK constraints and row-level security that Prisma cannot express live in
+// prisma/migrations/*/migration.sql. Keep both in sync when changing this file.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PublicationState {
+  draft
+  published
+  archived
+
+  @@map("publication_state")
+}
+
+enum Availability {
+  available
+  reserved
+  sold
+
+  @@map("availability")
+}
+
+enum FuelType {
+  petrol
+  diesel
+  hybrid
+  plug_in_hybrid
+  electric
+  other
+
+  @@map("fuel_type")
+}
+
+enum Transmission {
+  automatic
+  manual
+
+  @@map("transmission")
+}
+
+enum LeadType {
+  enquiry
+  viewing
+
+  @@map("lead_type")
+}
+
+enum LeadSource {
+  website
+
+  @@map("lead_source")
+}
+
+enum DeliveryState {
+  pending
+  delivered
+  failed
+
+  @@map("delivery_state")
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  cancelled
+  expired
+
+  @@map("payment_status")
+}
+
+enum PaymentPurpose {
+  viewing_fee
+
+  @@map("payment_purpose")
+}
+
+enum StaffRole {
+  staff
+  admin
+
+  @@map("staff_role")
+}
+
+model Location {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(120)
+  address   String   @db.VarChar(300)
+  latitude  Decimal? @db.Decimal(9, 6)
+  longitude Decimal? @db.Decimal(9, 6)
+  phone     String?  @db.VarChar(32)
+  hours     String?  @db.VarChar(300)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  vehicles Vehicle[]
+
+  @@map("locations")
+}
+
+model Vehicle {
+  id               String           @id @default(uuid()) @db.Uuid
+  externalId       String?          @unique @map("external_id") @db.VarChar(100)
+  slug             String           @unique @db.VarChar(120)
+  make             String           @db.VarChar(60)
+  model            String           @db.VarChar(80)
+  year             Int?             @db.SmallInt
+  /// Price in integer minor units (KES cents). Never use floating point.
+  priceAmount      BigInt?          @map("price_amount")
+  currency         String           @default("KES") @db.Char(3)
+  mileageKm        Int?             @map("mileage_km")
+  fuelType         FuelType?        @map("fuel_type")
+  transmission     Transmission?
+  locationId       String?          @map("location_id") @db.Uuid
+  description      String?          @db.VarChar(5000)
+  publicationState PublicationState @default(draft) @map("publication_state")
+  availability     Availability     @default(available)
+  publishedAt      DateTime?        @map("published_at") @db.Timestamptz(3)
+  soldAt           DateTime?        @map("sold_at") @db.Timestamptz(3)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Optimistic concurrency token; every mutation must match and increment it.
+  version          Int              @default(1)
+
+  location      Location?             @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  images        VehicleImage[]
+  leads         Lead[]
+  slugRedirects VehicleSlugRedirect[]
+
+  @@index([publicationState, availability, publishedAt(sort: Desc), id])
+  @@index([make, model])
+  @@index([priceAmount, id])
+  @@index([year])
+  @@index([locationId])
+  @@map("vehicles")
+}
+
+/// Old slugs kept so changed vehicle URLs can permanently redirect.
+model VehicleSlugRedirect {
+  slug      String   @id @db.VarChar(120)
+  vehicleId String   @map("vehicle_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+  @@map("vehicle_slug_redirects")
+}
+
+/// The image at position 0 is the cover.
+model VehicleImage {
+  id         String   @id @default(uuid()) @db.Uuid
+  vehicleId  String   @map("vehicle_id") @db.Uuid
+  storageKey String   @unique @map("storage_key") @db.VarChar(300)
+  altText    String   @map("alt_text") @db.VarChar(200)
+  position   Int
+  width      Int
+  height     Int
+  bytes      Int
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([vehicleId, position])
+  @@map("vehicle_images")
+}
+
+model Lead {
+  id                 String     @id @default(uuid()) @db.Uuid
+  vehicleId          String?    @map("vehicle_id") @db.Uuid
+  type               LeadType
+  name               String     @db.VarChar(120)
+  /// E.164 normalized phone number.
+  phone              String     @db.VarChar(20)
+  email              String?    @db.VarChar(254)
+  message            String?    @db.VarChar(2000)
+  /// UTC instant of the buyer's preferred slot. A request, not a booking.
+  preferredViewingAt DateTime?  @map("preferred_viewing_at") @db.Timestamptz(3)
+  source             LeadSource @default(website)
+  utmSource          String?    @map("utm_source") @db.VarChar(100)
+  utmMedium          String?    @map("utm_medium") @db.VarChar(100)
+  utmCampaign        String?    @map("utm_campaign") @db.VarChar(100)
+  utmContent         String?    @map("utm_content") @db.VarChar(100)
+  utmTerm            String?    @map("utm_term") @db.VarChar(100)
+  idempotencyKey     String     @unique @map("idempotency_key") @db.Uuid
+  upstreamId         String?    @map("upstream_id") @db.VarChar(200)
+  /// When the "we received your request" email reached the email provider.
+  confirmationSentAt   DateTime? @map("confirmation_sent_at") @db.Timestamptz(3)
+  confirmationAttempts Int       @default(0) @map("confirmation_attempts")
+  /// Last failure summary, never containing the customer's details.
+  confirmationError    String?   @map("confirmation_error") @db.VarChar(500)
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  vehicle  Vehicle?      @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  delivery LeadDelivery?
+  payments Payment[]
+
+  @@index([createdAt(sort: Desc)])
+  @@index([vehicleId])
+  @@map("leads")
+}
+
+/// Durable outbox row: one per lead, claimed by the delivery worker with a lease.
+model LeadDelivery {
+  leadId        String        @id @map("lead_id") @db.Uuid
+  state         DeliveryState @default(pending)
+  attempts      Int           @default(0)
+  nextAttemptAt DateTime      @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  leaseUntil    DateTime?     @map("lease_until") @db.Timestamptz(3)
+  lastError     String?       @map("last_error") @db.VarChar(500)
+  deliveredAt   DateTime?     @map("delivered_at") @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([state, nextAttemptAt])
+  @@map("lead_deliveries")
+}
+
+/// Staff authorization. Credentials live in Supabase Auth, never here.
+model StaffProfile {
+  id         String    @id @default(uuid()) @db.Uuid
+  authUserId String    @unique @map("auth_user_id") @db.Uuid
+  email      String    @db.VarChar(254)
+  role       StaffRole @default(staff)
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  auditEvents AuditEvent[]
+
+  @@map("staff_profiles")
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String   @db.VarChar(80)
+  entityType String   @map("entity_type") @db.VarChar(40)
+  entityId   String   @map("entity_id") @db.VarChar(100)
+  /// Safe changed fields only — never customer contact details or secrets.
+  changes    Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  actor StaffProfile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt(sort: Desc)])
+  @@map("audit_events")
+}
+
+/// Fixed-window counters for public endpoint rate limiting (keys are hashed).
+model RateLimitBucket {
+  key         String   @id @db.VarChar(120)
+  windowStart DateTime @map("window_start") @db.Timestamptz(3)
+  count       Int
+
+  @@map("rate_limit_buckets")
+}
+
+/// M-Pesa STK Push payment (viewing booking fee). One pending-or-paid payment per
+/// lead is enforced by a partial unique index in the migration.
+model Payment {
+  id                String         @id @default(uuid()) @db.Uuid
+  leadId            String         @map("lead_id") @db.Uuid
+  purpose           PaymentPurpose @default(viewing_fee)
+  /// Whole Kenyan shillings (M-Pesa only accepts whole amounts).
+  amountKes         Int            @map("amount_kes")
+  /// Number charged, 2547XXXXXXXX / 2541XXXXXXXX.
+  msisdn            String         @db.VarChar(15)
+  status            PaymentStatus  @default(pending)
+  merchantRequestId String?        @unique @map("merchant_request_id") @db.VarChar(100)
+  checkoutRequestId String?        @unique @map("checkout_request_id") @db.VarChar(100)
+  mpesaReceipt      String?        @unique @map("mpesa_receipt") @db.VarChar(30)
+  resultCode        Int?           @map("result_code")
+  resultDesc        String?        @map("result_desc") @db.VarChar(300)
+  paidAt            DateTime?      @map("paid_at") @db.Timestamptz(3)
+  lastQueriedAt     DateTime?      @map("last_queried_at") @db.Timestamptz(3)
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Restrict)
+
+  @@index([leadId])
+  @@index([status, createdAt])
+  @@map("payments")
+}
