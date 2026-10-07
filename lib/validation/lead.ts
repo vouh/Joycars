@@ -27,6 +27,7 @@ export function leadSubmissionSchema(now: () => Date = () => new Date()) {
     .object({
       idempotencyKey: uuid,
       type: z.enum(['enquiry', 'viewing']),
+      expectedViewingFeeKes: z.number().int().min(1).max(150000).optional(),
       vehicleId: z.preprocess(blankToUndefined, uuid.optional()),
       name: requiredText(120, 2),
       phone: phoneSchema,
@@ -69,7 +70,7 @@ export function leadSubmissionSchema(now: () => Date = () => new Date()) {
         preferredViewingAt = parsed;
       }
       if (missingEmail) return z.NEVER;
-      const { preferredViewingTime: _ignored, website, ...rest } = input;
+      const { preferredViewingTime: _ignored, website, expectedViewingFeeKes: _fee, ...rest } = input;
       return { ...rest, preferredViewingAt, isBot: Boolean(website?.trim()) };
     });
 }

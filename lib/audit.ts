@@ -6,7 +6,7 @@ type Tx = Prisma.TransactionClient;
 export type AuditInput = {
   actorId: string | null;
   action: string;
-  entityType: 'vehicle' | 'vehicle_image' | 'location' | 'lead' | 'staff';
+  entityType: 'vehicle' | 'vehicle_image' | 'location' | 'lead' | 'staff' | 'booking_setting';
   entityId: string;
   /** Safe field names/values only. Never pass customer contact details or secrets. */
   changes?: Prisma.InputJsonValue;

@@ -282,6 +282,8 @@ model Payment {
   resultDesc        String?        @map("result_desc") @db.VarChar(300)
   paidAt            DateTime?      @map("paid_at") @db.Timestamptz(3)
   lastQueriedAt     DateTime?      @map("last_queried_at") @db.Timestamptz(3)
+  receiptEmailSentAt DateTime?     @map("receipt_email_sent_at") @db.Timestamptz(3)
+  receiptEmailAttempts Int        @default(0) @map("receipt_email_attempts")
   createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -290,4 +292,11 @@ model Payment {
   @@index([leadId])
   @@index([status, createdAt])
   @@map("payments")
+}
+
+model BookingSetting {
+  id String @id @default("viewing") @db.VarChar(30)
+  feeKes Int @default(5) @map("fee_kes")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  @@map("booking_settings")
 }

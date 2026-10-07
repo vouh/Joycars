@@ -5,6 +5,7 @@ import { purgeExpiredRateLimits } from '@/lib/rate-limit';
 import { deliverPendingLeads } from '@/lib/services/lead-delivery';
 import { sendPendingConfirmations } from '@/lib/services/lead-emails';
 import { reconcilePendingPayments } from '@/lib/services/payments';
+import { sendPendingPaymentReceipts } from '@/lib/services/payment-emails';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -21,8 +22,9 @@ export const GET = route(async req => {
   const delivery = await deliverPendingLeads({ limit: 50 });
   const confirmations = await sendPendingConfirmations();
   const payments = await reconcilePendingPayments();
+  const receipts = await sendPendingPaymentReceipts();
   await purgeExpiredRateLimits();
-  return json({ delivery, confirmations, payments });
+  return json({ delivery, confirmations, payments, receipts });
 });
 
 export const POST = GET;

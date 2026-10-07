@@ -8,6 +8,7 @@ import { sendLeadConfirmation } from '@/lib/services/lead-emails';
 import { createLead } from '@/lib/services/leads';
 import { mpesa, startViewingFeePayment, toPublicPayment, type PublicPayment } from '@/lib/services/payments';
 import { leadSubmissionSchema } from '@/lib/validation/lead';
+import { getViewingFee } from '@/lib/services/booking-settings';
 
 /**
  * Public enquiry / viewing-request submission. Responds 201 only after the
@@ -17,7 +18,12 @@ import { leadSubmissionSchema } from '@/lib/validation/lead';
  */
 export const POST = route(async req => {
   await enforceRateLimit('lead', clientIp(req), 8, 15 * 60);
-  const input = leadSubmissionSchema().parse(await readBody(req));
+  const body = await readBody(req);
+  const input = leadSubmissionSchema().parse(body);
+  if (input.type === 'viewing' && !input.isBot && mpesa()) {
+    const expected = (body as Record<string, unknown>).expectedViewingFeeKes;
+    if (expected !== undefined && expected !== await getViewingFee()) throw new ApiError(409, 'fee_changed', 'The viewing fee has changed. Please refresh this page to review the current amount before paying.');
+  }
   const { stored, ...receipt } = await createLead(input);
 
   if (stored && !receipt.duplicate) {
@@ -31,8 +37,8 @@ export const POST = route(async req => {
   if (stored && receipt.type === 'viewing' && mpesa()) {
     try {
       payment = receipt.duplicate
-        ? await existingOrNewPayment(receipt.leadId)
-        : await startViewingFeePayment(receipt.leadId);
+        ? await existingOrNewPayment(receipt.leadId, (body as { expectedViewingFeeKes?: number }).expectedViewingFeeKes)
+        : await startViewingFeePayment(receipt.leadId, undefined, (body as { expectedViewingFeeKes?: number }).expectedViewingFeeKes);
     } catch (error) {
       payment = { status: 'not_started', message: error instanceof ApiError ? error.message : 'We could not send the M-Pesa prompt. Please try the payment again.' };
     }
@@ -43,7 +49,7 @@ export const POST = route(async req => {
 });
 
 /** A replayed submission shows the existing payment instead of charging again. */
-async function existingOrNewPayment(leadId: string) {
+async function existingOrNewPayment(leadId: string, expectedFeeKes?: number) {
   const active = await db.payment.findFirst({ where: { leadId, status: { in: ['pending', 'paid'] } } });
-  return active ? toPublicPayment(active) : startViewingFeePayment(leadId);
+  return active ? toPublicPayment(active) : startViewingFeePayment(leadId, undefined, expectedFeeKes);
 }

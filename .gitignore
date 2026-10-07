@@ -7,3 +7,4 @@ node_modules-incomplete/
 lib/generated/
 .env*
 .env.local
+.next-application-*/

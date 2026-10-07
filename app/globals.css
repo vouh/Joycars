@@ -113,3 +113,22 @@ body { padding: 0; background: #fff; }
   .admin-user span { display: none; }
   .admin-narrow { margin: 32px 16px 0; padding: 24px; }
 }
+
+/* Dedicated vehicle detail and viewing checkout. */
+.detail-page { background:#fafafa; min-height:100vh; }
+.detail-header { height:88px; border-bottom:1px solid #eee; padding:0 max(24px,calc((100vw - 1280px)/2)); justify-content:space-between; }
+.detail-header>a:last-child { display:flex; align-items:center; gap:8px; font-size:13px; }
+.detail-container { max-width:1280px; padding:32px 24px 64px; margin:auto; }
+.breadcrumbs { display:flex; flex-wrap:wrap; gap:10px; color:#888; font-size:12px; margin-bottom:26px; }
+.detail-layout { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(310px,1fr); gap:35px; align-items:start; }
+.detail-gallery { background:#eaeaea; border-radius:16px; overflow:hidden; position:relative; aspect-ratio:4/3; }
+.detail-gallery>img { width:100%; height:100%; object-fit:cover; display:block; }
+.detail-availability { position:absolute; left:18px; top:18px; background:white; padding:8px 13px; border-radius:30px; text-transform:capitalize; font-size:12px; font-weight:600; }
+.detail-availability.available { color:#267345; }.detail-availability.sold { color:#ae3434; }
+.detail-thumbnails { display:flex; gap:10px; margin-top:12px; }.detail-thumbnails button { width:90px; padding:3px; border:2px solid transparent; border-radius:8px; }.detail-thumbnails button[aria-pressed=true] { border-color:var(--orange); }.detail-thumbnails img { width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:4px; }
+.detail-main>.eyebrow { margin-top:28px; }.detail-main h1 { font-size:35px; margin:0 0 12px; letter-spacing:-1px; }
+.detail-location { display:flex; align-items:center; gap:7px; font-size:14px; color:#777; }.detail-location svg { color:var(--orange); }
+.detail-specs { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:25px 0; }.detail-specs>div { display:grid; gap:8px; background:white; padding:18px 12px; border:1px solid #eee; border-radius:9px; }.detail-specs svg { color:var(--orange); }.detail-specs span { color:#888; font-size:11px; }.detail-specs strong { font-size:13px; }
+.detail-description,.detail-visit { background:white; padding:25px; border-radius:12px; border:1px solid #eee; margin-bottom:18px; }.detail-description p,.detail-visit p { font-size:14px; color:#6c6c6c; line-height:1.8; white-space:pre-line; }.detail-description h2,.detail-visit h2 { font-size:20px; }
+.booking-panel { position:sticky; top:24px; background:white; border:1px solid #e9e9e9; border-radius:15px; padding:28px; box-shadow:0 8px 30px #00000005; }.booking-panel>h2 { font-size:31px; }.booking-panel h3 { margin:20px 0 10px; font-size:20px; }.booking-fee { display:flex; align-items:center; gap:12px; padding:18px 0; margin-top:15px; border-top:1px solid #eee; border-bottom:1px solid #eee; }.booking-fee svg { color:#269745; }.booking-fee strong { display:block; font-size:14px; }.booking-fee span { display:block; font-size:12px; color:#888; margin-top:5px; }.mpesa-button { background:#238a40; width:100%; font-size:11px; }.mpesa-button:hover { background:#1b7033; }.mpesa-button:disabled { opacity:.6; cursor:wait; }.booking-trust { display:flex; align-items:center; justify-content:center; gap:6px; color:#888; font-size:10px; margin:22px 0 0; }.booking-result p { font-size:13px; line-height:1.7; }.booking-check { color:#238a40; width:36px; height:36px; margin-top:25px; }.booking-reference { font-weight:600; }.payment-state { background:#fff7e7; border-radius:9px; padding:16px; margin:15px 0; font-size:13px; }.payment-state.paid { background:#eaf6ee; color:#216435; }.payment-state p { margin-bottom:0; }.detail-footer { text-align:center; font-size:12px; padding:25px; }.fee-setting { display:flex; flex-wrap:wrap; align-items:center; gap:18px; margin-bottom:25px; padding:22px; }.fee-setting h3 { margin:0 0 8px; }.fee-setting p { font-size:12px; color:#777; }.fee-setting label { font-size:12px; }.fee-setting input { display:block; padding:10px; width:120px; margin-top:7px; border:1px solid #ddd; border-radius:6px; }
+@media(max-width:800px) { .detail-layout { grid-template-columns:1fr; }.booking-panel { position:static; }.detail-container { padding:24px 18px 40px; }.detail-main h1 { font-size:28px; }.detail-specs { grid-template-columns:repeat(2,1fr); }.detail-header { height:76px; }.detail-header .logo { font-size:26px; } }

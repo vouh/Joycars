@@ -27,3 +27,5 @@ export const staffUpdateSchema = z
 export const signInSchema = z.object({ email: z.email('Enter a valid email address.').trim().toLowerCase().max(254) });
 
 export const passwordSignInSchema = signInSchema.extend({ password: z.string().min(1, 'Enter your password.').max(200) });
+
+export const adminSignUpSchema = signInSchema.extend({ password: z.string().min(12, 'Use at least 12 characters.').max(200) });

@@ -92,6 +92,9 @@ export async function readBody(req: NextRequest): Promise<unknown> {
  */
 export function assertSameOrigin(req: NextRequest) {
   const allowed = new Set([new URL(env().APP_URL).origin, req.nextUrl.origin]);
+  // The host the browser actually used (nextUrl can report the bind address, e.g. 0.0.0.0).
+  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
+  if (host) allowed.add(`${req.headers.get('x-forwarded-proto') ?? req.nextUrl.protocol.replace(':', '')}://${host}`);
   const origin = req.headers.get('origin');
   if (origin ? allowed.has(origin) : req.headers.get('sec-fetch-site') === 'same-origin') return;
   throw new ApiError(403, 'forbidden_origin', 'Cross-site requests are not allowed.');

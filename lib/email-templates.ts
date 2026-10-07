@@ -17,6 +17,11 @@ export type Showroom = { name: string; address: string; phone: string | null; ho
 
 const BUSINESS_NAME = 'JoyCars';
 
+export function buildPaymentReceiptEmail(p: { name: string; email: string; reference: string; amountKes: number; receipt: string | null; vehicle: string }): EmailMessage {
+  const text = `Hi ${p.name},\n\nWe received your viewing fee of KES ${p.amountKes} for ${p.vehicle}.\nBooking reference: ${p.reference}\n${p.receipt ? `M-Pesa receipt: ${p.receipt}\n` : ''}\nOur team will confirm your viewing time. Payment does not confirm the appointment.\n\nJoyCars`;
+  return { to: p.email, subject: 'Your M-Pesa payment receipt – JoyCars', text, html: `<div style="font-family:Arial,sans-serif;padding:28px;max-width:560px"><h1>JoyCars</h1><h2>Payment received</h2><p>Hi ${escapeHtml(p.name)},</p><p>We received <strong>KES ${p.amountKes}</strong> for your viewing of ${escapeHtml(p.vehicle)}.</p><p>Booking reference: ${escapeHtml(p.reference)}</p>${p.receipt ? `<p>M-Pesa receipt: ${escapeHtml(p.receipt)}</p>` : ''}<p>Our team will confirm your viewing time. Payment does not confirm the appointment.</p></div>` };
+}
+
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /** "We received your request" email. It must never read as a confirmed booking. */

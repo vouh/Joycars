@@ -18,6 +18,9 @@ const schema = z.object({
   LEAD_DELIVERY_ENABLED: z.enum(['true', 'false']).default('false').transform(v => v === 'true'),
   BUSINESS_SYSTEM_LEADS_URL: optionalUrl,
   BUSINESS_SYSTEM_API_TOKEN: z.string().optional(),
+  // Lets anyone create an administrator account from /admin. Testing only:
+  // keep it off wherever the site is public.
+  ADMIN_SIGNUP_ENABLED: z.enum(['true', 'false']).default('false').transform(v => v === 'true'),
   // Customer confirmation emails (Resend). Sending is skipped until both are set.
   // RESEND_FROM_EMAIL / RESEND_CONTACT_TO_EMAIL are accepted as alternative names.
   RESEND_API_KEY: z.preprocess(v => (v === '' ? undefined : v), z.string().optional()),

@@ -1,7 +1,8 @@
 import type { MetadataRoute } from 'next';
+import { siteOrigin } from '@/lib/site';
 
 export default function robots(): MetadataRoute.Robots {
-  const base = (process.env.APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+  const base = siteOrigin();
   // Indexing rules only; authorization is enforced on the server regardless.
   return {
     rules: { userAgent: '*', allow: '/', disallow: ['/admin', '/api/', '/auth/'] },

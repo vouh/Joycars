@@ -2,6 +2,8 @@ import 'server-only';
 import { timingSafeEqual } from 'node:crypto';
 import { db } from '@/lib/db';
 import { env } from '@/lib/env';
+import { getViewingFee } from './booking-settings';
+import { sendPaymentReceipt } from './payment-emails';
 import { Prisma, type Payment, type PaymentStatus } from '@/lib/generated/prisma/client';
 import { ApiError, notFound } from '@/lib/http';
 import { createDarajaClient, DarajaError, outcomeForResultCode, parseStkCallback, toMpesaMsisdn, type DarajaClient } from '@/lib/integrations/daraja';
@@ -22,12 +24,16 @@ export function mpesa(): MpesaSettings | null {
   const key = [e.MPESA_ENV, e.MPESA_CONSUMER_KEY, e.MPESA_SHORTCODE, e.MPESA_TILL_NUMBER, e.VIEWING_FEE_KES, e.MPESA_CALLBACK_BASE_URL].join('|');
   if (cached?.key === key) return cached.settings;
   let settings: MpesaSettings | null = null;
-  if (e.MPESA_CONSUMER_KEY && e.MPESA_CONSUMER_SECRET && e.MPESA_SHORTCODE && e.MPESA_PASSKEY && e.MPESA_CALLBACK_SECRET && e.VIEWING_FEE_KES) {
+  if (e.MPESA_CONSUMER_KEY && e.MPESA_CONSUMER_SECRET && e.MPESA_SHORTCODE && e.MPESA_PASSKEY && e.MPESA_CALLBACK_SECRET) {
     const base = new URL(e.MPESA_CALLBACK_BASE_URL ?? e.APP_URL);
+    if (base.protocol !== 'https:' || ['localhost', '127.0.0.1', '::1', '[::1]'].includes(base.hostname)) {
+      cached = { key, settings: null };
+      return null;
+    }
     // Safaricom only calls public HTTPS URLs. (Path avoids the words "mpesa"/"safaricom", which Daraja rejects.)
     const callbackUrl = new URL(`/api/payments/callback/${e.MPESA_CALLBACK_SECRET}`, base).toString();
     settings = {
-      feeKes: e.VIEWING_FEE_KES,
+      feeKes: e.VIEWING_FEE_KES ?? 5,
       callbackSecret: e.MPESA_CALLBACK_SECRET,
       client: createDarajaClient({
         environment: e.MPESA_ENV,
@@ -71,7 +77,7 @@ export function toPublicPayment(p: Pick<Payment, 'id' | 'status' | 'amountKes'>)
  * repeatedly: an in-flight or completed payment is returned instead of
  * charging again (also enforced by a partial unique index).
  */
-export async function startViewingFeePayment(leadId: string, phoneOverride?: string): Promise<PublicPayment> {
+export async function startViewingFeePayment(leadId: string, phoneOverride?: string, expectedFeeKes?: number): Promise<PublicPayment> {
   const settings = mpesa();
   if (!settings) throw new ApiError(503, 'payments_unavailable', 'M-Pesa payments are not available right now. Our team will contact you about your viewing.');
 
@@ -81,13 +87,15 @@ export async function startViewingFeePayment(leadId: string, phoneOverride?: str
 
   const active = await db.payment.findFirst({ where: { leadId, status: { in: ['pending', 'paid'] } } });
   if (active) return toPublicPayment(active);
+  const feeKes = await getViewingFee();
+  if (expectedFeeKes !== undefined && feeKes !== expectedFeeKes) throw new ApiError(409, 'fee_changed', 'The viewing fee has changed. Please refresh the page to review it before paying.');
 
   const msisdn = toMpesaMsisdn(phoneOverride ?? lead.phone);
   if (!msisdn) throw new ApiError(422, 'phone_not_mpesa', 'Enter a Kenyan Safaricom number (07… or 01…) to pay with M-Pesa.', { fields: { phone: 'Enter a Kenyan Safaricom number to pay with M-Pesa.' } });
 
   let payment: Payment;
   try {
-    payment = await db.payment.create({ data: { leadId, amountKes: settings.feeKes, msisdn, purpose: 'viewing_fee' } });
+    payment = await db.payment.create({ data: { leadId, amountKes: feeKes, msisdn, purpose: 'viewing_fee' } });
   } catch (error) {
     // A concurrent request created the active payment first.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -100,7 +108,7 @@ export async function startViewingFeePayment(leadId: string, phoneOverride?: str
   try {
     const { merchantRequestId, checkoutRequestId } = await settings.client.stkPush({
       msisdn,
-      amountKes: settings.feeKes,
+      amountKes: feeKes,
       accountReference: `JC${leadId.replace(/-/g, '').slice(0, 10).toUpperCase()}`,
       description: 'Viewing fee',
     });
@@ -135,7 +143,10 @@ async function settle(payment: Payment, resultCode: number, resultDesc: string, 
   };
   try {
     const updated = await db.payment.updateMany({ where: { id: payment.id, status: { in: movable } }, data });
-    if (updated.count && outcome === 'paid') console.info('[payments] viewing fee paid', { paymentId: payment.id, leadId: payment.leadId });
+    if (updated.count && outcome === 'paid') {
+      console.info('[payments] viewing fee paid', { paymentId: payment.id, leadId: payment.leadId });
+      await sendPaymentReceipt(payment.id);
+    }
     return updated.count > 0;
   } catch (error) {
     if (!(outcome === 'paid' && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) throw error;
@@ -172,6 +183,15 @@ export async function handleStkCallback(body: unknown) {
   if (!cb) return { handled: false, reason: 'not an STK callback' };
   const payment = await db.payment.findUnique({ where: { checkoutRequestId: cb.checkoutRequestId } });
   if (!payment) return { handled: false, reason: 'unknown CheckoutRequestID' };
+
+  if (cb.merchantRequestId !== payment.merchantRequestId) return { handled: false, reason: 'merchant request mismatch' };
+  if (cb.resultCode === 0) {
+    // Daraja callbacks are unsigned. Verify success against the authenticated
+    // provider query before recording money or issuing a receipt.
+    if (cb.amount !== payment.amountKes || cb.msisdn !== payment.msisdn || !cb.receipt) return { handled: false, reason: 'payment metadata mismatch' };
+    const confirmed = await mpesa()!.client.stkQuery(cb.checkoutRequestId);
+    if (!confirmed || confirmed.resultCode !== 0) return { handled: false, reason: 'provider has not confirmed success' };
+  }
 
   if (cb.resultCode === 0 && cb.amount !== null && cb.amount !== payment.amountKes) {
     console.error('[payments] amount mismatch in callback', { paymentId: payment.id, expected: payment.amountKes, received: cb.amount });

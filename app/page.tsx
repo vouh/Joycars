@@ -228,6 +228,13 @@ export default function Home() {
   function search(e: FormEvent) { e.preventDefault(); setApplied({ ...draft, page: '1' }); scrollToVehicles(); }
 
   function open(next: Exclude<Modal, null>) {
+    if (next.kind === 'viewing' && !next.vehicle) {
+      setMobileMenu(false); scrollToVehicles(); return;
+    }
+    if ((next.kind === 'vehicle' || next.kind === 'viewing') && next.vehicle) {
+      window.location.assign(`/vehicles/${encodeURIComponent(next.vehicle.slug)}`);
+      return;
+    }
     setSent(null); setFieldErrors({}); setFormError(''); setSubmitting(false); setMobileMenu(false);
     if (next.kind === 'enquiry' || next.kind === 'viewing') setIdempotencyKey(newIdempotencyKey());
     if (next.kind === 'vehicle' && next.vehicle) loadDetail(next.vehicle);

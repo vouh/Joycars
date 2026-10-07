@@ -24,6 +24,7 @@ Next.js 15 route handlers + Prisma 7 (PostgreSQL on Supabase) + Supabase Auth/St
 | `BUSINESS_SYSTEM_LEADS_URL`, `BUSINESS_SYSTEM_API_TOKEN` | Upstream webhook (HTTPS required in production) |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Customer confirmation emails via [Resend](https://resend.com). `EMAIL_FROM` like `JoyCars <bookings@your-domain>` on a domain verified in Resend. For testing only, `onboarding@resend.dev` can send to the Resend account's own address. Emails are skipped until both are set. `RESEND_FROM_EMAIL` works as an alternative name |
 | `EMAIL_REPLY_TO` | Optional: where customer replies go (e.g. the sales inbox). `RESEND_CONTACT_TO_EMAIL` works as an alternative name |
+| `ADMIN_SIGNUP_ENABLED` | Testing only. `true` adds "Create an admin account" to `/admin`, and every account made there is a full administrator. Leave unset (off) on any public deployment |
 | `RESEND_TEST_EMAIL` | Optional: recipient for `npm run email:test`, which sends a sample confirmation to check the setup |
 | `MPESA_ENV` | `sandbox` or `production` (Daraja) |
 | `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_PASSKEY` | From the Daraja app with Lipa na M-Pesa Online |
@@ -32,6 +33,16 @@ Next.js 15 route handlers + Prisma 7 (PostgreSQL on Supabase) + Supabase Auth/St
 | `MPESA_CALLBACK_SECRET` | Random, 32+ characters; secret path segment of the callback URL |
 | `MPESA_CALLBACK_BASE_URL` | Optional public **HTTPS** origin for Safaricom callbacks (defaults to `APP_URL`; use a tunnel when testing locally) |
 | `VIEWING_FEE_KES` | Whole-shilling viewing booking fee. M-Pesa stays off until this and every M-Pesa variable above are set |
+
+## Deploying to Vercel
+
+`vercel.json` defines one public service, `app` (this Next.js project: site, `/api/*`, `/admin`, M-Pesa callback). `ui-preview/` is a local sample-data copy and is not deployed (`.vercelignore`). No service bindings are needed: the browser calls `/api/...` on the same domain.
+
+1. `npx vercel link`, then add the environment variables above in the Vercel dashboard (Production). Set `APP_URL` to the production `https://` domain. Leave out `DIRECT_URL`, `MPESA_API_BASE_URL` and `MPESA_CALLBACK_BASE_URL` (the callback uses `APP_URL`). Keep `ADMIN_SIGNUP_ENABLED` unset or `false`.
+2. Run migrations from your machine before deploying schema changes: `npm run db:migrate`. The Vercel build only runs `prisma generate`.
+3. `npx vercel` (preview) / `npx vercel --prod`.
+4. Cron: Vercel calls `/api/cron/deliver-leads` with `Authorization: Bearer $CRON_SECRET`. The Hobby plan allows one run a day, so it runs at 06:00 UTC (09:00 Nairobi). Lead delivery, confirmation emails and M-Pesa results are all attempted immediately when a buyer submits; the cron is only the safety net. On Pro, change the schedule to `*/5 * * * *`.
+5. Preview deployments get production env vars only if you add them to Preview too. Keep `LEAD_DELIVERY_ENABLED` and the M-Pesa variables out of Preview so test bookings never reach the business system or charge real phones.
 
 ## M-Pesa viewing fee
 

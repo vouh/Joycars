@@ -8,6 +8,7 @@ import { phoneSchema } from '@/lib/validation/lead';
 const bodySchema = z.object({
   /** Optional different Safaricom number to charge (e.g. a family member's). */
   phone: phoneSchema.optional(),
+  expectedViewingFeeKes: z.number().int().min(1).max(150000).optional(),
 });
 
 /**
@@ -18,6 +19,6 @@ export const POST = route(async (req, { params }: { params: Promise<{ id: string
   const leadId = uuid.parse((await params).id);
   await enforceRateLimit('payment-ip', clientIp(req), 10, 15 * 60);
   await enforceRateLimit('payment-lead', leadId, 4, 15 * 60);
-  const { phone } = bodySchema.parse(await readJson(req));
-  return json({ payment: await startViewingFeePayment(leadId, phone) }, { status: 202 });
+  const { phone, expectedViewingFeeKes } = bodySchema.parse(await readJson(req));
+  return json({ payment: await startViewingFeePayment(leadId, phone, expectedViewingFeeKes) }, { status: 202 });
 });
